@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>X-Ray QR Traceability — Role Separated V3</title>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;background:#f4f6f9;color:#2d3748}
+header{background:#ffffff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.wrap{max-width:1200px;margin:auto;padding:24px}.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:22px;margin:16px 0;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.stat{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
+.num{font-size:30px;font-weight:700;margin-top:6px;color:#2b6cb0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+button{padding:10px 16px;border:0;border-radius:8px;background:#2b6cb0;color:#fff;font-weight:600;margin:4px;cursor:pointer;transition:background 0.2s}
+button:hover{background:#2c5282}
+.alt{background:#ebf8ff;color:#2b6cb0}.alt:hover{background:#bee3f8}
+.danger{background:#fff5f5;color:#c53030}.danger:hover{background:#fed7d7}
+.success{background:#f0fff4;color:#276749}.success:hover{background:#c6f6d5}
+input,select{padding:11px;border:1px solid #cbd5e0;border-radius:8px;width:100%;margin:5px 0 14px;font-size:14px}
+.field label{font-size:13px;font-weight:700;display:block;color:#4a5568}
+table{width:100%;border-collapse:collapse}th,td{padding:12px;border-bottom:1px solid #edf2f7;text-align:left;font-size:13px}
+th{color:#4a5568;font-weight:700;background:#f7fafc}
+.badge{display:inline-block;padding:5px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.blue{background:#ebf8ff;color:#2b6cb0}.green{background:#f0fff4;color:#276749}.yellow{background:#fffaf0;color:#9c4221}.red{background:#fff5f5;color:#c53030}
+.hidden{display:none!important}.muted{color:#718096;font-size:12px}.notice{padding:12px;border-radius:10px;background:#fffaf0;color:#9c4221;font-size:13px;border:1px solid #feebc8}
+.timeline{border-left:3px solid #cbd5e0;padding-left:16px;margin-top:10px}.event{margin-bottom:16px;position:relative}
+.event::before{content:'';position:absolute;left:-22.5px;top:4px;width:9px;height:9px;border-radius:50%;background:#2b6cb0}
+.check{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #edf2f7}
+.qrbox{width:200px;height:200px;margin:15px auto;border:2px dashed #cbd5e0;border-radius:12px;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#fff;padding:10px}
+#reader{width:100%;max-width:380px;margin:auto;border-radius:10px;overflow:hidden}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<section id="login" class="wrap" style="max-width:420px;margin-top:10vh">
+<div class="card" style="text-align:center">
+<h2 style="color:#2b6cb0;margin-bottom:4px">XR TRACEABILITY</h2>
+<p class="muted">Sistem Monitoring Terbatas (Produksi vs QC)</p>
+<div style="text-align:left;margin-top:20px">
+<div class="field"><label>Username</label><input id="loginUser" placeholder="Contoh: PROD01 atau QC01"></div>
+<div class="field"><label>Pilih Hak Akses (Role)</label>
+<select id="loginRole">
+<option value="PRODUCTION">Tim Produksi (Input Alat & Lihat Status Selesai QC)</option>
+<option value="QC">Tim QC (Alur Pengecekan & Release Alat)</option>
+</select></div>
+<button style="width:100%;padding:12px;font-size:15px" onclick="login()">MASUK KE SISTEM</button>
+</div>
+</div>
+</section>
+
+<section id="app" class="hidden">
+<header>
+  <div><b id="appName" style="font-size:16px;color:#2b6cb0">X-Ray Traceability</b></div>
+  <div><span id="who" class="badge blue" style="margin-right:8px"></span> <button class="danger" onclick="logout()" style="padding:6px 12px">Logout</button></div>
+</header>
+<div class="wrap">
+
+<!-- MENU NAVIGASI DINAMIS BERDASARKAN ROLE -->
+<nav class="card" id="navMenu" style="padding:10px;display:flex;gap:6px;flex-wrap:wrap"></nav>
+
+<!-- DASHBOARD PRODUKSI -->
+<section id="dashProd" class="hidden">
+<h2>Dashboard Produksi</h2>
+<div class="notice"><b>Akses Produksi:</b> Anda dapat mendaftarkan alat baru dan memantau berapa banyak alat yang telah selesai diperiksa/dirilis oleh tim QC.</div>
+<div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
+<div class="stat">Total Alat Terdaftar (Input Produksi)<div class="num" id="pTotalReg">0</div></div>
+<div class="stat" style="border-color:#38a169">Alat Selesai QC & Siap Packing<div class="num" id="pTotalDone" style="color:#38a169">0</div></div>
+</div>
+<div class="card">
+  <h3>Daftar Alat Buatan Produksi & Status Terkini</h3>
+  <table><thead><tr><th>ID Alat</th><th>Nama Produk</th><th>Serial Number</th><th>Batch</th><th>Status Terakhir</th></tr></thead>
+  <tbody id="prodTableRows"></tbody></table>
+</div>
+</section>
+
+<!-- DASHBOARD QC -->
+<section id="dashQC" class="hidden">
+<h2>Dashboard Kontrol Kualitas (QC)</h2>
+<div class="notice"><b>Akses QC:</b> Bertanggung jawab penuh menjalankan seluruh parameter pengujian, *QC Release*, hingga proses *packing*.</div>
+<div class="grid" style="margin-top:16px">
+<div class="stat">Masuk Antrean QC<div class="num" id="qReady">0</div></div>
+<div class="stat">Sedang Diuji (Testing)<div class="num" id="qTesting">0</div></div>
+<div class="stat">Selesai Dirilis (QC Released)<div class="num" id="qRelease">0</div></div>
+<div class="stat">Selesai Packing & Pass<div class="num" id="qPack">0</div></div>
+</div>
+</section>
+
+<!-- MENU REGISTER (KHUSUS PRODUKSI) -->
+<section id="register" class="hidden">
+<h2>Registrasi Alat Baru (Produksi)</h2>
+<div class="notice">Menu ini khusus digunakan oleh Tim Produksi untuk memasukkan data identitas alat baru ke sistem.</div>
+<div class="two">
+<div class="card">
+<div class="field"><label>Product Name *</label><input id="fName" value="X-Ray Portable" readonly></div>
+<div class="field"><label>Product Code *</label><input id="fCode" value="XRP-001" readonly></div>
+<div class="field"><label>Model / Type</label><input id="fModel" value="Model-X"></div>
+<div class="field"><label>Serial Number *</label><input id="fSerial" placeholder="Masukkan Serial Number alat..."></div>
+<div class="field"><label>Batch Number *</label><input id="fBatch" value="BATCH-261010-01"></div>
+<button onclick="registerProduct()" style="width:100%;padding:12px">DAFTARKAN ALAT & CETAK QR</button>
+</div>
+<div class="card" style="text-align:center">
+<h3>QR Code Alat Terdaftar</h3>
+<div id="newQR" class="qrbox"><span class="muted">QR muncul setelah disimpan.</span></div>
+<p><b id="newQRId" style="color:#2b6cb0"></b></p>
+</div>
+</div>
+</section>
+
+<!-- MENU SCAN & TRACKING (UNTUK QC) -->
+<section id="scanQC" class="hidden">
+<h2>Pindai & Kelola Alur Pengujian QC</h2>
+<div class="two">
+<div class="card">
+  <h3>Scan QR Menggunakan Kamera</h3>
+  <div id="reader"></div>
+  <p class="muted" style="margin-top:10px;text-align:center">Arahkan kamera ke QR Code alat.</p>
+</div>
+<div class="card">
+  <h3>Atau Pilih Cepat Alat dalam Antrean</h3>
+  <div id="qcQueueList" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+</div>
+</div>
+</section>
+
+<!-- DETAIL ALUR QC & AKSI -->
+<section id="detailQC" class="hidden">
+<button class="alt" onclick="page(user.role==='PRODUCTION'?'dashboard':'scanQC')" style="margin-bottom:12px">← Kembali</button>
+<div class="two">
+<div class="card">
+<h2 id="dId" style="color:#2b6cb0;margin-top:0"></h2>
+<p><b>Produk:</b> <span id="dName"></span> | <b>Serial:</b> <span id="dSerial"></span></p>
+<p><b>Batch:</b> <span id="dBatch"></span></p>
+<p><b>Status Saat Ini:</b> <span id="dStatus"></span></p>
+<p><b>Lokasi & PIC:</b> <span id="dLocPic"></span></p>
+<hr style="border:0;border-top:1px solid #edf2f7;margin:16px 0">
+<h4>Alur Kerja & Aksi QC:</h4>
+<div id="qcActions" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+</div>
+<div class="card" style="text-align:center">
+<h3>QR Code Alat</h3>
+<div id="detailQR" class="qrbox" style="margin:auto"></div>
+<p style="margin-top:10px"><b id="qrid" style="color:#2b6cb0"></b></p>
+</div>
+</div>
+<div class="card" id="qcChecklistCard"></div>
+</section>
+
+<!-- HISTORY / RIWAYAT -->
+<section id="history" class="hidden">
+<h2>Riwayat Alur Alat</h2>
+<div class="card">
+<div class="field"><label>Pilih Alat</label><select id="histSelect" onchange="renderHistory()"></select></div>
+<div id="histBox" style="margin-top:15px"></div>
+</div>
+</section>
+
+</div>
+</section>
+
+<script>
+const demo=[
+{id:"XR-TRIAL-001",name:"X-Ray Portable",code:"XRP-001",model:"Model-X",serial:"SN-XR-001",batch:"BATCH-260831-01",status:"QC_TESTING",loc:"QC Room",pic:"QC_Staff",
+qc:{Visual:1,"Image Quality":1,Radiation:0,Aging:0,Electrical:0},
+history:[["09:00","Product Registered","Production"],["13:30","QC Received","QC"],["13:45","QC Testing Started","QC"]]},
+{id:"XR-TRIAL-002",name:"X-Ray Portable",code:"XRP-001",model:"Model-X",serial:"SN-XR-002",batch:"BATCH-260831-01",status:"READY_FOR_QC",loc:"Production",pic:"Production",
+qc:{Visual:0,"Image Quality":0,Radiation:0,Aging:0,Electrical:0},
+history:[["08:00","Product Registered","Production"]]},
+{id:"XR-TRIAL-003",name:"X-Ray Portable",code:"XRP-001",model:"Model-X",serial:"SN-XR-003",batch:"BATCH-260831-02",status:"QC_PASS_PACKING",loc:"QC Room",pic:"QC_Staff",
+qc:{Visual:1,"Image Quality":1,Radiation:1,Aging:1,Electrical:1},
+history:[["08:00","Product Registered","Production"],["12:15","QC Released & Packed","QC"]]}
+];
+
+let products=JSON.parse(localStorage.getItem("xr_role_data")||"null")||demo;
+let user=null,current=null,html5QrCode=null;
+const labels={READY_FOR_QC:"READY FOR QC",QC_RECEIVED:"QC RECEIVED",QC_TESTING:"QC TESTING",QC_RELEASED:"QC RELEASED",PACKING_IN_PROGRESS:"PACKING IN PROGRESS",PACKING_INSPECTION:"PACKING QC",QC_PASS_PACKING:"QC PASS — PACKING"};
+
+function login(){
+let u=document.getElementById("loginUser").value.trim();
+if(!u){alert("Masukkan username terlebih dahulu.");return}
+user={id:u.toUpperCase(),role:document.getElementById("loginRole").value};
+document.getElementById("login").classList.add("hidden");document.getElementById("app").classList.remove("hidden");
+document.getElementById("who.textContent=user.id+' • '+(user.role==='PRODUCTION'?'Tim Produksi':'Tim QC');
+setupNavigation();
+}
+
+function setupNavigation(){
+let nav=document.getElementById("navMenu");
+if(user.role==="PRODUCTION"){
+  document.getElementById("appName").textContent="X-Ray Traceability — [Portal Produksi]";
+  nav.innerHTML=`<button onclick="page('dashProd')">Dashboard Produksi</button><button onclick="page('register')" class="alt">+ Registrasi Alat Baru</button><button onclick="page('history')" class="alt">Riwayat Alat</button>`;
+  page("dashProd");
+}else{
+  document.getElementById("appName").textContent="X-Ray Traceability — [Portal QC]";
+  nav.innerHTML=`<button onclick="page('dashQC')">Dashboard QC</button><button onclick="page('scanQC')" class="alt">Scan & Proses QC Alat</button><button onclick="page('history')" class="alt">Riwayat Alat</button>`;
+  page("dashQC");
+}
+}
+
+function logout(){
+if(html5QrCode && html5QrCode.isScanning) { html5QrCode.stop().catch(()=>{}); }
+location.reload();
+}
+
+function page(id){
+["dashProd","dashQC","register","scanQC","detailQC","history"].forEach(x=>document.getElementById(x).classList.add("hidden"));
+document.getElementById(id).classList.remove("hidden");
+
+if(id==="scanQC") initScanner();
+else if(html5QrCode && html5QrCode.isScanning){ html5QrCode.stop().catch(()=>{}); }
+
+if(id==="dashProd") renderDashProd();
+if(id==="dashQC") renderDashQC();
+if(id==="scanQC") renderQCQueue();
+if(id==="history"){
+  document.getElementById("histSelect").innerHTML=products.map(p=>`<option value="${p.id}">${p.id} (${p.serial})</option>`).join("");
+  renderHistory();
+}
+}
+
+function badge(s){
+let c=s==="QC_RELEASED"||s==="QC_PASS_PACKING"?"green":s==="QC_TESTING"||s==="QC_RECEIVED"?"blue":"yellow";
+return `<span class="badge ${c}">${labels[s]||s}</span>`;
+}
+
+function registerProduct(){
+if(user.role!=="PRODUCTION"){alert("Akses ditolak. Hanya Tim Produksi yang bisa mendaftarkan alat.");return;}
+let serial=fSerial.value.trim();
+if(!serial){alert("Masukkan Serial Number alat!");return}
+if(products.some(p=>p.serial===serial)){alert("Serial Number sudah terdaftar!");return}
+
+let id="XR-"+new Date().toISOString().slice(0,10).replaceAll("-","")+"-"+String(products.length+1).padStart(3,"0");
+let p={id,name:fName.value,code:fCode.value,model:fModel.value,serial,batch:fBatch.value,status:"READY_FOR_QC",loc:"Production",pic:user.id,
+qc:{Visual:0,"Image Quality":0,Radiation:0,Aging:0,Electrical:0},
+history:[[new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}),"Product Registered",user.id]]};
+products.push(p);save();
+
+document.getElementById("newQRId").textContent=id;
+let box=document.getElementById("newQR");
+box.innerHTML="";
+new QRCode(box, {text:id, width:160, height:160});
+alert("Alat berhasil didaftarkan dan dikirim ke antrean QC!\nID: "+id);
+}
+
+function renderDashProd(){
+let totalReg=products.length;
+let totalDone=products.filter(p=>["QC_RELEASED","PACKING_IN_PROGRESS","PACKING_INSPECTION","QC_PASS_PACKING"].includes(p.status)).length;
+document.getElementById("pTotalReg").textContent=totalReg;
+document.getElementById("pTotalDone").textContent=totalDone;
+document.getElementById("prodTableRows").innerHTML=products.map(p=>`<tr><td><b>${p.id}</b></td><td>${p.name}</td><td>${p.serial}</td><td>${p.batch}</td><td>${badge(p.status)}</td></tr>`).join("");
+}
+
+function renderDashQC(){
+let c=s=>products.filter(p=>p.status===s).length;
+qReady.textContent=c("READY_FOR_QC");
+qTesting.textContent=c("QC_TESTING");
+qRelease.textContent=c("QC_RELEASED");
+qPack.textContent=c("QC_PASS_PACKING");
+}
+
+function initScanner(){
+if(!html5QrCode){ html5QrCode = new Html5Qrcode("reader"); }
+if(!html5QrCode.isScanning){
+  html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 200 },
+    (decodedText)=>{
+      let found=products.find(p=>p.id===decodedText);
+      if(found){
+        html5QrCode.stop().then(()=>{ openQCDetail(found.id); }).catch(()=>{ openQCDetail(found.id); });
+      }
+    }, (err)=>{}
+  ).catch(err=>{});
+}
+renderQCQueue();
+}
+
+function renderQCQueue(){
+let box=document.getElementById("qcQueueList");
+box.innerHTML=products.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #edf2f7"><span><b>${p.id}</b> (${p.serial}) — ${badge(p.status)}</span><button class="alt" style="padding:6px 12px" onclick="openQCDetail('${p.id}')">Proses</button></div>`).join("");
+}
+
+function openQCDetail(id){
+current=products.find(p=>p.id===id);if(!current)return;
+dId.textContent=current.id;dName.textContent=current.name;dSerial.textContent=current.serial;dBatch.textContent=current.batch;
+dStatus.innerHTML=badge(current.status);dLocPic.textContent=`Lokasi: ${current.loc} | PIC: ${current.pic}`;
+qrid.textContent=current.id;
+
+let qbox=document.getElementById("detailQR");
+qbox.innerHTML="";
+new QRCode(qbox, {text:current.id, width:160, height:160});
+
+renderQCActions();renderQCChecklist();page("detailQC");
+}
+
+function renderQCActions(){
+let p=current,r=user.role,a=[];
+if(r!=="QC"){document.getElementById("qcActions").innerHTML='<span class="muted">Tim Produksi hanya dapat memantau status alat. Aksi pengujian dikendalikan oleh Tim QC.</span>';return;}
+
+if(p.status==="READY_FOR_QC")a.push(["TERIMA ALAT (QC RECEIVE)","receive"]);
+if(p.status==="QC_RECEIVED")a.push(["MULAI UJI QC (START TESTING)","start"]);
+if(p.status==="QC_TESTING"&&Object.values(p.qc).every(Boolean))a.push(["KELUARKAN QC RELEASE","release"]);
+if(p.status==="QC_RELEASED")a.push(["MULAI PACKING","pack"]);
+if(p.status==="PACKING_IN_PROGRESS")a.push(["INSPEKSI PACKING","inspect"]);
+if(p.status==="PACKING_INSPECTION")a.push(["QC PASS + LABEL SELESAI","pass"]);
+
+document.getElementById("qcActions").innerHTML=a.map(x=>`<button onclick="doAction('${x[1]}')">${x[0]}</button>`).join("")||'<span class="muted">Tidak ada aksi lanjutan untuk status ini.</span>';
+}
+
+function renderQCChecklist(){
+if(!["QC_RECEIVED","QC_TESTING","QC_RELEASED"].includes(current.status)){document.getElementById("qcChecklistCard").innerHTML="";return}
+let ks=Object.keys(current.qc),done=ks.filter(k=>current.qc[k]).length;
+let isQC=(user.role==="QC");
+document.getElementById("qcChecklistCard").innerHTML=`<h3>Checklist Monitoring Pengujian QC</h3><p>${done}/${ks.length} parameter selesai</p>`+
+ks.map(k=>`<div class="check"><span><b>${k}</b></span><input type="checkbox" style="width:20px;height:20px" ${current.qc[k]?"checked":""} ${isQC?"":"disabled"} onchange="toggleQC('${k}',this.checked)"></div>`).join("");
+}
+
+function toggleQC(k,v){if(user.role!=="QC")return;current.qc[k]=v;save();renderQCChecklist();renderQCActions()}
+
+function doAction(x){
+if(user.role!=="QC"){alert("Akses terbatas untuk Tim QC.");return;}
+let map={receive:["QC_RECEIVED","QC Room","QC Received"],start:["QC_TESTING","QC Room","QC Testing Started"],release:["QC_RELEASED","Production","QC Released"],pack:["PACKING_IN_PROGRESS","Production","Packing Started"],inspect:["PACKING_INSPECTION","QC Room","Packing Inspection"],pass:["QC_PASS_PACKING","QC Room","QC Pass & Labeled"]};
+let m=map[x];current.status=m[0];current.loc=m[1];current.pic=user.id;
+current.history.push([new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"}),m[2],user.id]);
+save();openQCDetail(current.id);
+}
+
+function save(){localStorage.setItem("xr_role_data",JSON.stringify(products));}
+
+function renderHistory(){
+let p=products.find(x=>x.id===histSelect.value);if(!p)return;
+histBox.innerHTML=`<h3>Riwayat: ${p.id} (${p.serial})</h3><div class="timeline">${p.history.map(e=>`<div class="event"><b>${e[1]}</b><br><span class="muted">${e[0]} • Oleh: ${e[2]}</span></div>`).join("")}</div>`;
+}
+</script>
+</body>
+</html>
